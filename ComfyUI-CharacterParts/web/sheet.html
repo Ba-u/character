@@ -1,0 +1,1115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>캐릭터 프리팹 표 편집</title>
+<style>
+  :root{
+    --bg:#1b1b1f; --panel:#232329; --line:#3a3a44; --fg:#e6e6ea; --dim:#9a9aa6;
+    --accent:#3b5bdb; --accent-soft:rgba(59,91,219,.22); --head:#2a2a32;
+    --ok:#2f9e44; --warn:#e67700; --danger:#fa5252; --row:#1f1f25; --row2:#232329;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f6f7f9; --panel:#fff; --line:#d8dae0; --fg:#1d1d22; --dim:#6b6b76;
+      --accent-soft:rgba(59,91,219,.14); --head:#eef0f4; --row:#fff; --row2:#f8f9fb;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+
+  header{flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 12px;display:flex;flex-direction:column;gap:8px}
+  .titlerow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
+  .tabs{display:flex;gap:4px;flex-wrap:wrap}
+  .grow{flex:1}
+  button,select,input{font:inherit;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 10px}
+  button{cursor:pointer;white-space:nowrap}
+  button:hover:not(:disabled){filter:brightness(1.18)}
+  button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.danger{color:var(--danger)}
+  .tab{background:transparent;border-color:transparent;opacity:.7}
+  .tab.on{background:var(--head);border-color:var(--line);opacity:1;font-weight:600}
+  .toolrow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  #search{min-width:180px}
+  #status{font-size:12px;color:var(--dim);white-space:nowrap;display:flex;align-items:center;gap:6px}
+  #status .dot{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  #status.dirty .dot{background:var(--warn)}
+  #status.err .dot{background:var(--danger)}
+  .hint{font-size:11px;color:var(--dim)}
+  .bundlebar{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+  .bundlebar .lbl{font-size:12px;color:var(--dim);margin-right:2px}
+  .bchip{border:1px dashed var(--line);border-radius:12px;padding:3px 10px;font-size:12px;cursor:pointer;opacity:.8;background:transparent;color:var(--fg)}
+  .bchip:hover{opacity:1}
+  .bchip.on{background:var(--accent);border-color:var(--accent);border-style:solid;color:#fff;opacity:1;font-weight:600}
+
+  .wrap{flex:1;min-height:0;overflow:auto;position:relative}
+  table{border-collapse:separate;border-spacing:0;font-size:12px}
+  th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:0;height:28px;vertical-align:middle}
+  thead th{position:sticky;top:0;z-index:3;background:var(--head);font-weight:600;text-align:left;padding:4px 8px;white-space:nowrap;
+           box-shadow:inset 0 -1px 0 var(--line)}
+  thead th.grp{text-align:center;font-size:11px;color:var(--dim);top:0}
+  thead tr:nth-child(2) th{top:26px;z-index:3}
+  tbody tr:nth-child(odd) td{background:var(--row)}
+  tbody tr:nth-child(even) td{background:var(--row2)}
+  .cell{padding:3px 8px;min-height:28px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:cell}
+  td.sticky,th.sticky{position:sticky;left:0;z-index:2}
+  thead th.sticky{z-index:4}
+  td.sticky{background:var(--head)!important;font-weight:500}
+  /* 이름 칸도 왼쪽에 고정 — 오른쪽으로 스크롤해도 어느 행인지 보이게 */
+  td.c0,th.c0{position:sticky;left:34px;z-index:2;box-shadow:1px 0 0 var(--line)}
+  thead th.sticky,thead th.c0{z-index:6!important}  /* 고정 머리글이 다른 칸에 가리지 않게 */
+  td.c0{background:var(--panel)!important;font-weight:500}
+  td.sel{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)!important}
+  td.inrange{background:var(--accent-soft)!important}
+  /* 고정된 칸은 불투명하게 (뒤 내용이 비치지 않도록) */
+  td.c0.sel,td.c0.inrange{background:var(--panel)!important;box-shadow:inset 0 0 0 999px var(--accent-soft),1px 0 0 var(--line)}
+  td.ro .cell{color:var(--dim);cursor:default;font-style:italic}
+  td.bool .cell{justify-content:center;cursor:pointer;font-weight:600}
+  td.num .cell{justify-content:flex-end}
+  .rowno{color:var(--dim);font-size:11px;text-align:center;width:34px;min-width:34px}
+  td.rowno{cursor:pointer}
+  tr.picked td.rowno{background:var(--accent)!important;color:#fff}
+  .editor{position:absolute;z-index:10;border:2px solid var(--accent);border-radius:3px;background:var(--panel);color:var(--fg);
+          font:12px/1.4 system-ui,sans-serif;padding:2px 6px;outline:none;resize:none;min-height:28px}
+  .empty{padding:24px;color:var(--dim)}
+  dialog{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;max-width:560px;padding:18px}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
+  dialog h2{margin:0 0 10px;font-size:15px}
+  .numgrid{display:grid;grid-template-columns:auto 130px auto 130px;gap:8px 12px;align-items:center}
+  .numgrid>label{white-space:nowrap;font-size:12px;color:var(--dim)}
+  dialog ul{margin:0;padding-left:18px}
+  dialog li{margin:4px 0}
+  kbd{background:var(--head);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;font-family:ui-monospace,monospace}
+</style>
+</head>
+<body>
+<header>
+  <div class="titlerow">
+    <h1>📊 캐릭터 프리팹 표 편집</h1>
+    <div class="tabs" id="tabs"></div>
+    <span class="grow"></span>
+    <span id="status"><span class="dot"></span><span id="statustext">불러오는 중…</span></span>
+  </div>
+  <div class="toolrow">
+    <input id="search" placeholder="🔍 검색">
+    <button id="addRow">＋ 행 추가</button>
+    <button id="dupRow">⎘ 복제</button>
+    <button id="numberRows">🔢 번호 매기기</button>
+    <button id="addExtra">✨ 추가 프롬 만들기</button>
+    <button id="nodeOn">✚ 노드에서 켜기</button>
+    <button id="nodeOff">➖ 노드에서 끄기</button>
+    <button id="groupSet">🎛 그룹 설정</button>
+    <button id="stripNum" title="선택한 행의 이름에서 숫자를 지웁니다">🔢 이름 숫자 지우기</button>
+    <button id="stripChar" title="선택한 행의 이름에서 문자를 지웁니다">🔤 이름 문자 지우기</button>
+    <button id="delRow" class="danger">🗑 선택 행 삭제</button>
+    <button id="undo">↶ 되돌리기</button>
+    <button id="reload">⟳ 새로고침</button>
+    <span class="grow"></span>
+    <span class="hint" id="count"></span>
+    <button id="help">? 도움말</button>
+  </div>
+  <div class="bundlebar" id="bundlebar"></div>
+</header>
+
+<div class="wrap" id="wrap"><div class="empty">불러오는 중…</div></div>
+
+<dialog id="grpdlg">
+  <h2>🎛 그룹 설정 일괄 적용</h2>
+  <div id="grpTarget" class="hint" style="margin-bottom:6px"></div>
+  <div id="grpTools" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+  <div id="grpList" style="display:grid;grid-template-columns:1fr auto 170px;gap:6px 10px;align-items:center;max-height:300px;overflow:auto"></div>
+  <div style="display:flex;gap:6px;align-items:center;margin-top:10px">
+    <input id="grpNew" placeholder="그룹 이름을 직접 추가" style="flex:1">
+    <button id="grpAdd">＋ 추가</button>
+  </div>
+  <p style="margin:14px 0 0;display:flex;gap:6px;justify-content:flex-end">
+    <button class="primary" id="grpApply">적용</button><button onclick="grpdlg.close()">취소</button>
+  </p>
+</dialog>
+
+<dialog id="numdlg">
+  <h2>🔢 순차 번호 매기기</h2>
+  <div id="numTarget" class="hint" style="margin-bottom:10px"></div>
+  <div class="numgrid">
+    <label for="numStart">시작 번호</label><input id="numStart" type="number" value="1" step="1">
+    <label for="numStep">간격</label><input id="numStep" type="number" value="1" min="1" step="1">
+    <label for="numDigits">자리수</label><input id="numDigits" type="number" value="0" min="0" max="8" step="1" title="0 = 1,2,3 / 2 = 01,02">
+    <label for="numSep">구분자</label><input id="numSep" value=" ">
+    <label for="numWhere">위치</label>
+    <select id="numWhere"><option value="prefix">이름 앞</option><option value="suffix">이름 뒤</option><option value="only">번호만</option></select>
+    <label for="numKeep">기존 번호</label>
+    <select id="numKeep"><option value="replace">바꾸기</option><option value="keep">그대로 두고 덧붙이기</option></select>
+  </div>
+  <div id="numPreview" class="hint" style="margin-top:10px;white-space:pre-wrap;max-height:160px;overflow:auto"></div>
+  <p style="margin:14px 0 0;display:flex;gap:6px;justify-content:flex-end">
+    <button class="primary" id="numApply">적용</button><button onclick="numdlg.close()">취소</button>
+  </p>
+</dialog>
+
+<dialog id="askdlg">
+  <h2 id="askTitle"></h2>
+  <div id="askBody" style="font-size:13px;line-height:1.5;word-break:break-word"></div>
+  <p style="margin:14px 0 0;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap" id="askBtns"></p>
+</dialog>
+
+<dialog id="helpdlg">
+  <h2>표 편집 도움말</h2>
+  <ul>
+    <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> 칸 이동 · <kbd>Tab</kbd> 오른쪽 · <kbd>Enter</kbd> 아래</li>
+    <li>글자를 바로 입력하거나 <kbd>Enter</kbd> / 더블클릭으로 편집, <kbd>Esc</kbd> 취소</li>
+    <li><kbd>Shift</kbd>+방향키 또는 <kbd>Shift</kbd>+클릭으로 여러 칸 선택</li>
+    <li><kbd>Ctrl</kbd>+<kbd>C</kbd> / <kbd>Ctrl</kbd>+<kbd>V</kbd> — 엑셀·구글 시트와 표 그대로 복사/붙여넣기</li>
+    <li><kbd>Delete</kbd> 선택한 칸 비우기 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기</li>
+    <li>✔/✕ 칸은 클릭하면 바뀝니다 · 왼쪽 번호를 누르면 행 전체 선택</li>
+    <li>고친 내용은 <b>자동 저장</b>되고 ComfyUI 노드·매니저에 바로 반영됩니다</li>
+    <li>😊감정 탭에서는 <b>✚➖ 노드에서 켜기/끄기</b>, <b>🎛 그룹 설정</b> 으로 고른 감정을 한 번에 바꿀 수 있습니다
+      (그룹 설정 창은 지금 열려 있는 ComfyUI 워크플로의 그룹 목록과 상태를 읽어옵니다)</li>
+  </ul>
+  <p style="margin:12px 0 0"><button onclick="helpdlg.close()">닫기</button></p>
+</dialog>
+
+<script type="module">
+// =============================================================== 공통
+const API = "";                       // 같은 서버
+const bc = "BroadcastChannel" in window ? new BroadcastChannel("charprefab") : null;
+const $ = (id) => document.getElementById(id);
+const el = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (v == null) continue;
+    if (k === "style") Object.assign(e.style, v);
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k in e) { try { e[k] = v; } catch { e.setAttribute(k, v); } }
+    else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false && c !== "") e.append(c);
+  return e;
+};
+const clone = (o) => JSON.parse(JSON.stringify(o ?? null));
+const natCmp = (a, b) => String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+const tidyName = (v) => String(v).replace(/([_\-. ])[_\-. ]+/g, "$1").replace(/^[_\-. ]+|[_\-. ]+$/g, "").trim();
+/** 이름에서 숫자만 지우기("digits") 또는 문자만 지우기("letters") */
+const stripName = (name, mode) =>
+  tidyName(mode === "digits" ? String(name).replace(/[0-9]/g, "") : String(name).replace(/[^0-9_\-. ]/g, ""));
+/** 바꾼 이름의 충돌을 피해 [원래이름, 새이름] 목록을 만든다 */
+function renamePlan(names, fn, existing) {
+  const taken = new Set(Object.keys(existing).filter((n) => !names.includes(n)));
+  const out = [];
+  for (const n of names) {
+    const base = fn(n);
+    if (!base || base === n) continue;
+    let name = base, i = 2;
+    while (taken.has(name)) name = `${base}_${i++}`;
+    taken.add(name);
+    out.push([n, name]);
+  }
+  return out;
+}
+const normPath = (v) => String(v ?? "").replace(/\\/g, "/").split("/").map((x) => x.trim()).filter((x) => x && x !== "." && x !== "..").join("/");
+
+async function getJSON(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+async function postJSON(path, body) {
+  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+// =============================================================== 상태
+let META = null;        // schema 등 서버 payload
+let COLL = {};          // 모든 컬렉션 원본
+let tab = "emotion";
+let rows = [];          // 현재 탭의 [{key, data}] (화면 순서)
+let cols = [];
+let cur = { r: 0, c: 0 };
+let anchor = { r: 0, c: 0 };
+let pickedRows = new Set();
+let dirty = new Map();  // key -> {old_name}
+let dirtyBundles = new Set();   // 묶음 칸을 고쳤을 때 저장할 묶음 이름
+let bundleFilter = "";          // "" = 전체, "__none__" = 묶음 없음, 그 외 = 묶음 이름
+let undoStack = [];
+let saveTimer = null;
+let editing = null;
+let suppressReload = false;
+
+const TABS = [
+  ["emotion", "😊 감정"], ["appearance", "👤 캐릭터"], ["outfit", "👗 의상"],
+  ["background", "🏙 배경"], ["pregnancy", "🤰 임신"], ["emotion_group", "📦 감정 묶음"],
+  ["character", "⭐ 저장된 캐릭터"],
+];
+
+// =============================================================== 열 정의
+const items = (t) => COLL[t] || {};
+const namesOf = (t) => Object.keys(items(t)).sort(natCmp);
+const bundleList = () => Object.keys(items("emotion_group")).sort(natCmp);
+const bundleOf = (b) => (items("emotion_group")[b]?.emotions || []);
+const bundlesOfEmotion = (name) => bundleList().filter((b) => bundleOf(b).includes(name));
+const charSlots = () => META.char_outfit_slots || { default: "기본 의상", idol: "아이돌 의상" };
+const dig = (o, ...ks) => ks.reduce((a, k) => (a == null ? a : a[k]), o);
+function put(o, ks, v) {
+  let t = o;
+  for (const k of ks.slice(0, -1)) t = (t[k] ??= {});
+  t[ks.at(-1)] = v;
+}
+const defaultOff = (sec) => new Set(META.schema[sec]?.default_off || []);
+
+/** 열 하나: {label, group, type, get(d), set(d,v), options, width, ro} */
+const txt = (label, ks, group, width) => ({
+  label, group, type: "text", width,
+  get: (d) => dig(d, ...ks) ?? "", set: (d, v) => put(d, ks, String(v ?? "")),
+});
+const num = (label, ks, group, { min = 0, max = 2, step = 0.05, dflt = 1 } = {}) => ({
+  label, group, type: "num", width: 70,
+  get: (d) => { const v = dig(d, ...ks); return v == null ? dflt : v; },
+  set: (d, v) => { const n = parseFloat(String(v).replace(/[^\d.\-]/g, "")); put(d, ks, isNaN(n) ? dflt : Math.max(min, Math.min(max, n))); },
+});
+const bool = (label, ks, group, dflt = true) => ({
+  label, group, type: "bool", width: 56,
+  get: (d) => { const v = dig(d, ...ks); return v == null ? dflt : !!v; },
+  set: (d, v) => put(d, ks, !!v),
+});
+const sel = (label, ks, group, options, width = 150) => ({
+  label, group, type: "select", options, width,
+  get: (d) => dig(d, ...ks) ?? options[0][0], set: (d, v) => put(d, ks, v),
+});
+
+// 감정: 입힐 의상 (슬롯 + 특정 프리팹을 한 칸에)
+function outfitChoiceCol() {
+  const options = [
+    ["slot:node", "노드 의상"],
+    ...Object.entries(charSlots()).map(([k, l]) => [`slot:${k}`, `캐릭터 ${l}`]),
+    ...namesOf("outfit").map((n) => [`prefab:${n}`, n]),
+  ];
+  return {
+    label: "입힐 의상", group: "👗 의상", type: "select", options, width: 140,
+    get: (d) => {
+      const o = d.outfit || {};
+      const slot = o.slot || (o.prefab ? "prefab" : "node");
+      return slot === "prefab" ? `prefab:${o.prefab}` : `slot:${slot}`;
+    },
+    set: (d, v) => {
+      d.outfit ??= {};
+      if (String(v).startsWith("prefab:")) { d.outfit.slot = "prefab"; d.outfit.prefab = String(v).slice(7); }
+      else { d.outfit.slot = String(v).slice(5) || "node"; d.outfit.prefab = ""; }
+    },
+  };
+}
+// 감정: 그룹 설정 "그룹A=mute, 그룹B=on"
+const groupsCol = () => ({
+  label: "그룹 설정", group: "🎛 그룹", type: "text", width: 170,
+  get: (d) => Object.entries(d.groups || {}).map(([t, a]) => `${t}=${a}`).join(", "),
+  set: (d, v) => {
+    const out = {};
+    for (const part of String(v).split(",")) {
+      const i = part.lastIndexOf("=");
+      if (i < 0) continue;
+      const t = part.slice(0, i).trim(), a = part.slice(i + 1).trim();
+      if (t && ["on", "mute", "bypass"].includes(a)) out[t] = a;
+    }
+    d.groups = out;
+  },
+});
+// 캐릭터의 추가 프롬 (이름마다 긍정/부정 두 칸)
+function extraCols() {
+  const names = [...new Set([...Object.values(items("appearance")).flatMap((v) => (v?.extras || []).map((x) => x?.name).filter(Boolean)), ...pendingExtras])].sort(natCmp);
+  return names.flatMap((n) => ["positive", "negative"].map((kind) => ({
+    label: `${n} ${kind === "positive" ? "➕" : "➖"}`, group: "✨ 추가 프롬", type: "text", width: 150,
+    get: (d) => (d.extras || []).find((x) => x?.name === n)?.[kind] ?? "",
+    set: (d, v) => {
+      d.extras ??= [];
+      let x = d.extras.find((y) => y?.name === n);
+      if (!x) { if (!String(v).trim()) return; x = { name: n, positive: "", negative: "" }; d.extras.push(x); }
+      x[kind] = String(v ?? "");
+      if (!x.positive.trim() && !x.negative.trim()) d.extras = d.extras.filter((y) => y !== x);
+    },
+  })));
+}
+const pendingExtras = new Set();   // 아직 값이 없어 저장되지 않은 추가 프롬 이름
+const extraNames = () => [...new Set(Object.values(items("appearance")).flatMap((v) => (v?.extras || []).map((x) => x?.name).filter(Boolean)))].sort(natCmp);
+
+/** 감정이 속한 묶음 칸. 값을 고치면 묶음 쪽이 바뀐다 */
+const bundleCol = () => ({
+  label: "묶음", group: "📦 묶음", type: "text", width: 160, useRow: true,
+  get: (row) => bundlesOfEmotion(row.key).join(", "),
+  set: (row, raw) => {
+    const want = String(raw).split(",").map((x) => x.trim()).filter(Boolean);
+    const known = bundleList();
+    const unknown = want.filter((b) => !known.includes(b));
+    const target = want.filter((b) => known.includes(b));
+    let changed = false;
+    for (const b of known) {
+      const g = items("emotion_group")[b];
+      g.emotions ??= [];
+      const has = g.emotions.includes(row.key), should = target.includes(b);
+      if (has === should) continue;
+      g.emotions = should ? [...g.emotions, row.key] : g.emotions.filter((x) => x !== row.key);
+      dirtyBundles.add(b);
+      changed = true;
+    }
+    if (unknown.length) setStatus("dirty", `없는 묶음은 무시: ${unknown.join(", ")}`);
+    if (changed) scheduleSave();
+    return changed;
+  },
+});
+
+function buildCols() {
+  const S = META.schema;
+  const f = (sec, group) => S[sec].fields.map((x) => txt(x.label.replace(/\s*\([^)]{4,}\)$/, ""), ["fields", x.key], group, 170));
+  switch (tab) {
+    case "emotion": {
+      const resModes = [["node", "노드 설정"], ["custom", "직접 지정"]];
+      const partCol = (sec, x) => bool(x.label.replace(/\s*\([^)]{4,}\)$/, ""), ["parts", sec, x.key],
+        sec === "appearance" ? "👤 넣을 캐릭터 칸" : "👗 넣을 의상 칸", !defaultOff(sec).has(x.key));
+      return [
+        txt("이름", ["__name"], "기본", 140),
+        txt("폴더", ["folder"], "기본", 110),
+        txt("추가 경로", ["path"], "기본", 120),
+        bundleCol(),
+        ...f("emotion", "프롬프트"),
+        num("가중치", ["weight"], "프롬프트"),
+        txt("네거티브", ["negative"], "프롬프트", 150),
+        outfitChoiceCol(),
+        txt("의상 코드", ["outfit", "code"], "👗 의상", 90),
+        sel("해상도", ["resolution", "mode"], "📐 해상도", resModes, 100),
+        num("가로", ["resolution", "width"], "📐 해상도", { min: 64, max: 8192, step: 8, dflt: 1024 }),
+        num("세로", ["resolution", "height"], "📐 해상도", { min: 64, max: 8192, step: 8, dflt: 1024 }),
+        sel("배경 종류", ["background", "variant"], "🏙 배경", Object.entries(META.bg_variants), 100),
+        sel("배경 프리팹", ["background", "prefab"], "🏙 배경", [["", "(노드 배경)"], ...namesOf("background").map((n) => [n, n])], 130),
+        bool("⚔ 전투", ["parts", "appearance", "combat"], "👤 넣을 캐릭터 칸", false),
+        ...S.appearance.fields.filter((x) => x.key !== "combat").map((x) => partCol("appearance", x)),
+        ...S.outfit.fields.map((x) => partCol("outfit", x)),
+        ...extraNames().map((n) => bool(n, ["extras", n], "✨ 추가 프롬", false)),
+        groupsCol(),
+        txt("메모", ["note"], "기본", 150),
+      ];
+    }
+    case "appearance":
+      return [
+        txt("이름", ["__name"], "기본", 140), txt("코드", ["code"], "기본", 70),
+        ...f("appearance", "프롬프트"),
+        sel("기본 의상", ["outfits", "default"], "👗 캐릭터 의상", [["", "(지정 안 함)"], ...namesOf("outfit").map((n) => [n, n])], 140),
+        sel("아이돌 의상", ["outfits", "idol"], "👗 캐릭터 의상", [["", "(지정 안 함)"], ...namesOf("outfit").map((n) => [n, n])], 140),
+        num("가중치", ["weight"], "기본"), txt("네거티브", ["negative"], "기본", 150),
+        ...extraCols(),
+        txt("메모", ["note"], "기본", 150),
+      ];
+    case "outfit":
+      return [txt("이름", ["__name"], "기본", 140), txt("코드", ["code"], "기본", 70), ...f("outfit", "프롬프트"),
+        num("가중치", ["weight"], "기본"), txt("네거티브", ["negative"], "기본", 150), txt("메모", ["note"], "기본", 150)];
+    case "background":
+      return [txt("이름", ["__name"], "기본", 140), ...f("background", "프롬프트"),
+        num("가중치", ["weight"], "기본"), txt("네거티브", ["negative"], "기본", 150), txt("메모", ["note"], "기본", 150)];
+    case "pregnancy": {
+      const P = META.pregnancy;
+      return [txt("이름", ["__name"], "기본", 140),
+        txt("코드", ["before", "code"], P.label.before, 80), txt("프롬프트", ["before", "prompt"], P.label.before, 190), txt("네거티브", ["before", "negative"], P.label.before, 150),
+        txt("코드", ["after", "code"], P.label.after, 80), txt("프롬프트", ["after", "prompt"], P.label.after, 190), txt("네거티브", ["after", "negative"], P.label.after, 150),
+        num("가중치", ["weight"], "기본"), txt("메모", ["note"], "기본", 150)];
+    }
+    case "emotion_group":
+      return [txt("이름", ["__name"], "기본", 160), {
+        label: "감정 (쉼표로)", group: "기본", type: "text", width: 420,
+        get: (d) => (d.emotions || []).join(", "),
+        set: (d, v) => { d.emotions = String(v).split(",").map((x) => x.trim()).filter(Boolean); },
+      }, txt("메모", ["note"], "기본", 180)];
+    case "character": {
+      // 저장된 조합의 각 섹션: 프리팹을 고르면 통째로 가져오고, 칸은 따로 고칠 수 있음
+      const secCols = (sec) => {
+        const label = S[sec].label;
+        const g = `📌 ${label}`;
+        return [
+          {
+            label: "프리팹", group: g, type: "select", width: 150,
+            options: [["", "(직접 입력)"], ...namesOf(sec).map((n) => [n, n])],
+            get: (d) => d?.[sec]?.name ?? "",
+            set: (d, v) => {
+              d[sec] ??= {};
+              if (!v) { d[sec].name = ""; return; }
+              const src = items(sec)[v];
+              if (src) Object.assign(d[sec], clone(src), { name: v });   // 프리팹에서 가져오기
+            },
+          },
+          ...S[sec].fields.map((x) => txt(x.label.replace(/\s*\([^)]{4,}\)$/, ""), [sec, "fields", x.key], g, 170)),
+          num("가중치", [sec, "weight"], g),
+          txt("네거티브", [sec, "negative"], g, 150),
+        ];
+      };
+      return [txt("이름", ["__name"], "기본", 150),
+        txt("품질 태그", ["quality"], "프롬프트", 190), txt("추가 표정/포즈", ["expression_pose"], "프롬프트", 160),
+        txt("추가 태그", ["extra"], "프롬프트", 160), txt("공통 네거티브", ["negative"], "프롬프트", 190),
+        ...secCols("appearance"), ...secCols("outfit"), ...secCols("background"),
+        txt("메모", ["note"], "기본", 160)];
+    }
+  }
+  return [];
+}
+
+// =============================================================== 데이터 로드 / 저장
+async function load(keepPos = false) {
+  const d = await getJSON("/charprefab/data");
+  META = d; COLL = d.collections;
+  if (!keepPos) { cur = { r: 0, c: 0 }; anchor = { ...cur }; }
+  pickedRows.clear(); dirty.clear(); dirtyBundles.clear(); undoStack = [];
+  render();
+  setStatus("ok", "불러옴");
+}
+function rebuildRows() {
+  const q = $("search").value.trim().toLowerCase();
+  let all = namesOf(tab).map((k) => ({ key: k, data: items(tab)[k] || {} }));
+  if (tab === "emotion" && bundleFilter) {            // 묶음별로 걸러 보기
+    all = bundleFilter === "__none__"
+      ? all.filter(({ key }) => !bundlesOfEmotion(key).length)
+      : all.filter(({ key }) => bundleOf(bundleFilter).includes(key));
+  }
+  rows = !q ? all : all.filter(({ key, data }) =>
+    key.toLowerCase().includes(q) || JSON.stringify(data).toLowerCase().includes(q));
+}
+function renderBundleBar() {
+  const bar = $("bundlebar"), list = bundleList();
+  if (tab !== "emotion" || !list.length) { bar.replaceChildren(); bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  const noneCount = namesOf("emotion").filter((n) => !bundlesOfEmotion(n).length).length;
+  const chip = (key, label, n) => el("button", {
+    className: "bchip" + (bundleFilter === key ? " on" : ""),
+    onclick: () => { bundleFilter = bundleFilter === key ? "" : key; cur = { r: 0, c: cur.c }; anchor = { ...cur }; render(); },
+  }, `${label} ${n}`);
+  bar.replaceChildren(
+    el("span", { className: "lbl" }, "📦 묶음별 보기"),
+    chip("", "전체", namesOf("emotion").length),
+    ...list.map((b) => chip(b, b, bundleOf(b).filter((e) => items("emotion")[e]).length)),
+    noneCount ? chip("__none__", "묶음 없음", noneCount) : null,
+  );
+}
+function setStatus(kind, text) {
+  const s = $("status"); s.className = kind === "ok" ? "" : kind;
+  $("statustext").textContent = text;
+}
+function scheduleSave() {
+  setStatus("dirty", `저장 대기 ${dirty.size + dirtyBundles.size}개…`);
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 600);
+}
+function markDirty(key, oldName) {
+  if (!dirty.has(key)) dirty.set(key, { old_name: oldName ?? key });
+  scheduleSave();
+}
+async function save() {
+  if (!dirty.size && !dirtyBundles.size) return;
+  const batch = [...dirty.entries()].map(([key, { old_name }]) => ({ name: key, old_name, data: items(tab)[key] }))
+    .filter((x) => x.data);
+  const bBatch = [...dirtyBundles].map((b) => ({ name: b, old_name: b, data: items("emotion_group")[b] })).filter((x) => x.data);
+  dirty.clear(); dirtyBundles.clear();
+  setStatus("dirty", "저장 중…");
+  try {
+    if (bBatch.length) COLL = (await postJSON("/charprefab/save_many", { collection: "emotion_group", items: bBatch })).collections;
+    const j = batch.length ? await postJSON("/charprefab/save_many", { collection: tab, items: batch }) : { collections: COLL };
+    COLL = j.collections;
+    if (j.errors?.length) { setStatus("err", "일부 실패"); alert("저장 실패:\n" + j.errors.join("\n")); }
+    else setStatus("ok", `저장됨 (${batch.length + bBatch.length}개)`);
+    suppressReload = true;
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    setTimeout(() => (suppressReload = false), 300);
+    render(true);
+  } catch (e) { setStatus("err", "저장 실패"); alert("저장 실패: " + e.message); }
+}
+function snapshot() {
+  undoStack.push({ tab, items: clone(items(tab)),
+    emotions: tab === "emotion_group" ? clone(items("emotion")) : null,
+    groups: tab === "emotion" ? clone(items("emotion_group")) : null });
+  if (undoStack.length > 60) undoStack.shift();
+}
+async function undo() {
+  const s = undoStack.pop();
+  if (!s) return;
+  const restore = async (coll, after) => {
+    const gone = Object.keys(items(coll)).filter((k) => !(k in after));
+    if (gone.length) await postJSON("/charprefab/delete_many", { collection: coll, names: gone });
+    return postJSON("/charprefab/save_many", { collection: coll, items: Object.entries(after).map(([name, data]) => ({ name, data })) });
+  };
+  try {
+    if (s.emotions) await restore("emotion", s.emotions);   // 묶음과 함께 지운 감정도 되살림
+    if (s.groups) await restore("emotion_group", s.groups);  // 묶음 칸 편집도 되살림
+    const j = await restore(s.tab, s.items);
+    COLL = j.collections;
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    render(true); setStatus("ok", "되돌림");
+  } catch (e) { setStatus("err", "되돌리기 실패"); alert(e.message); }
+}
+
+// =============================================================== 렌더
+function render(keepPos = false) {
+  if (!META) return;
+  cols = buildCols();
+  rebuildRows();
+  cur.r = Math.min(cur.r, Math.max(0, rows.length - 1));
+  cur.c = Math.min(cur.c, cols.length - 1);
+
+  fillTabs();
+  renderBundleBar();
+  $("count").textContent = `${rows.length}개 · ${cols.length}칸`;
+  $("undo").disabled = !undoStack.length;
+  $("delRow").disabled = $("stripNum").disabled = $("stripChar").disabled = !pickedRows.size;
+  $("dupRow").disabled = $("numberRows").disabled = !rows.length;
+  $("addExtra").style.display = tab === "appearance" ? "" : "none";
+  for (const id of ["nodeOn", "nodeOff", "groupSet"]) {
+    $(id).style.display = tab === "emotion" ? "" : "none";
+    $(id).disabled = !rows.length;
+  }
+
+  if (!rows.length) {
+    $("wrap").replaceChildren(el("div", { className: "empty" }, $("search").value ? "검색 결과가 없습니다." : "항목이 없습니다. ‘＋ 행 추가’로 만들어 보세요."));
+    return;
+  }
+  // 그룹 머리글
+  const groups = [];
+  cols.forEach((c, i) => {
+    const g = c.group || "";
+    if (groups.length && groups.at(-1).g === g) groups.at(-1).n++;
+    else groups.push({ g, n: 1, i });
+  });
+  const thead = el("thead", {},
+    el("tr", {}, el("th", { className: "rowno sticky grp" }, ""), groups.map((x) => el("th", { className: "grp", colSpan: x.n }, x.g))),
+    el("tr", {}, el("th", { className: "rowno sticky" }, "#"),
+      cols.map((c, i) => el("th", { className: i === 0 ? "c0" : "", style: { minWidth: (c.width || 120) + "px" }, title: `${c.group ? c.group + " · " : ""}${c.label}` }, c.label))));
+
+  const tbody = el("tbody", {}, rows.map((row, r) => el("tr", { className: pickedRows.has(row.key) ? "picked" : "" },
+    el("td", { className: "rowno sticky", onclick: (e) => toggleRow(row.key, e.shiftKey) }, el("div", { className: "cell", style: { justifyContent: "center" } }, String(r + 1))),
+    cols.map((c, ci) => {
+      const v = c.label === "이름" && c.get(row.data) === "" ? row.key : cellValue(row, c);
+      const td = el("td", {
+        className: [ci === 0 ? "c0" : "", c.type === "bool" ? "bool" : "", c.type === "num" ? "num" : "", c.ro ? "ro" : ""].filter(Boolean).join(" "),
+        onmousedown: (e) => { if (e.detail > 1) return; e.preventDefault(); focusCell(r, ci, e.shiftKey); },
+        ondblclick: () => { focusCell(r, ci); beginEdit(); },
+        onclick: () => { if (c.type === "bool" && !c.ro) { focusCell(r, ci); toggleBool(); } },
+      }, el("div", { className: "cell" }, display(v, c)));
+      return td;
+    }))));
+
+  const table = el("table", { id: "grid" }, thead, tbody);
+  $("wrap").replaceChildren(table);
+  paintSelection();
+}
+function fillTabs() {
+  $("tabs").replaceChildren(...TABS.map(([k, l]) =>
+    el("button", { className: "tab" + (k === tab ? " on" : ""), onclick: () => switchTab(k) }, `${l} (${namesOf(k).length})`)));
+}
+function cellValue(row, c) {
+  return c.label === "이름" ? row.key : c.useRow ? c.get(row) : c.get(row.data);
+}
+function display(v, c) {
+  if (c.type === "bool") return v ? "✔" : "✕";
+  if (c.type === "select") return (c.options.find((o) => String(o[0]) === String(v)) || [null, v])[1] ?? "";
+  if (c.type === "num") return String(v);
+  return String(v ?? "");
+}
+const tdAt = (r, c) => document.querySelector(`#grid tbody tr:nth-child(${r + 1}) td:nth-child(${c + 2})`);
+function paintSelection() {
+  document.querySelectorAll("#grid td.sel,#grid td.inrange").forEach((e) => e.classList.remove("sel", "inrange"));
+  const [r0, r1] = [Math.min(cur.r, anchor.r), Math.max(cur.r, anchor.r)];
+  const [c0, c1] = [Math.min(cur.c, anchor.c), Math.max(cur.c, anchor.c)];
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) tdAt(r, c)?.classList.add("inrange");
+  const t = tdAt(cur.r, cur.c);
+  if (t) { t.classList.add("sel"); t.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+}
+function focusCell(r, c, extend = false) {
+  commitEdit();
+  cur = { r: Math.max(0, Math.min(r, rows.length - 1)), c: Math.max(0, Math.min(c, cols.length - 1)) };
+  if (!extend) anchor = { ...cur };
+  paintSelection();
+}
+function toggleRow(key, extend) {
+  if (!extend) { pickedRows.has(key) ? pickedRows.delete(key) : pickedRows.add(key); }
+  else {
+    const i = rows.findIndex((x) => x.key === key), j = cur.r;
+    for (let k = Math.min(i, j); k <= Math.max(i, j); k++) pickedRows.add(rows[k].key);
+  }
+  render(true);
+}
+
+// =============================================================== 값 쓰기
+function setCell(r, c, raw) {
+  const row = rows[r], col = cols[c];
+  if (!row || !col || col.ro) return false;
+  if (col.label === "이름") return renameRow(row, String(raw).trim());
+  if (col.useRow) return col.set(row, raw);        // 묶음 칸처럼 다른 컬렉션을 고치는 칸
+  const d = items(tab)[row.key];
+  if (!d) return false;
+  const before = JSON.stringify(d);
+  if (col.type === "bool") col.set(d, /^(1|true|✔|y|yes|o|켜|on)$/i.test(String(raw).trim()));
+  else if (col.type === "select") {
+    const s = String(raw).trim();
+    const hit = col.options.find((o) => String(o[0]) === s) || col.options.find((o) => String(o[1]).trim() === s);
+    if (!hit) return false;
+    col.set(d, hit[0]);
+  } else col.set(d, ["폴더", "추가 경로"].includes(col.label) ? normPath(raw) : raw);
+  if (JSON.stringify(d) === before) return false;
+  markDirty(row.key);
+  return true;
+}
+function renameRow(row, name) {
+  if (!name || name === row.key) return false;
+  if (items(tab)[name]) { alert(`'${name}' 이(가) 이미 있습니다.`); return false; }
+  const d = items(tab)[row.key];
+  delete items(tab)[row.key];
+  items(tab)[name] = d;
+  const prev = dirty.get(row.key)?.old_name ?? row.key;
+  dirty.delete(row.key);
+  dirty.set(name, { old_name: prev });
+  row.key = name;
+  markDirty(name, prev);
+  return true;
+}
+function toggleBool() {
+  const col = cols[cur.c];
+  if (col?.type !== "bool" || col.ro) return;
+  snapshot();
+  const d = items(tab)[rows[cur.r].key];
+  col.set(d, !col.get(d));
+  markDirty(rows[cur.r].key);
+  render(true);
+}
+
+// =============================================================== 셀 편집기
+function beginEdit(initial = null) {
+  const col = cols[cur.c];
+  if (!col || col.ro) return;
+  if (col.type === "bool") { toggleBool(); return; }
+  const td = tdAt(cur.r, cur.c);
+  if (!td) return;
+  const d = items(tab)[rows[cur.r].key];
+  const value = cellValue(rows[cur.r], col);
+  const box = td.getBoundingClientRect(), wrapBox = $("wrap").getBoundingClientRect();
+  const style = {
+    left: box.left - wrapBox.left + $("wrap").scrollLeft + "px",
+    top: box.top - wrapBox.top + $("wrap").scrollTop + "px",
+    width: Math.max(box.width, 140) + "px",
+  };
+  let input;
+  if (col.type === "select") {
+    input = el("select", { className: "editor", style }, col.options.map(([v, l]) => el("option", { value: v, selected: String(v) === String(value) }, l)));
+    input.addEventListener("change", () => commitEdit(true));
+  } else {
+    input = el(col.width > 160 ? "textarea" : "input", { className: "editor", style, value: initial ?? String(value) });
+    if (col.width > 160) input.style.height = Math.max(box.height, 54) + "px";
+  }
+  editing = { input, r: cur.r, c: cur.c };
+  $("wrap").append(input);
+  input.focus();
+  if (initial == null && col.type !== "select") input.select?.();
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Escape") { cancelEdit(); }
+    else if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(true); move(1, 0); }
+    else if (e.key === "Tab") { e.preventDefault(); commitEdit(true); move(0, e.shiftKey ? -1 : 1); }
+  });
+  input.addEventListener("blur", () => commitEdit(true));
+}
+function commitEdit(force = false) {
+  if (!editing) return;
+  const { input, r, c } = editing;
+  editing = null;
+  const v = input.value;
+  input.remove();
+  snapshot();
+  if (setCell(r, c, v)) render(true);
+  else { undoStack.pop(); paintSelection(); }
+}
+function cancelEdit() {
+  if (!editing) return;
+  editing.input.remove();
+  editing = null;
+  paintSelection();
+}
+function move(dr, dc, extend = false) {
+  focusCell(cur.r + dr, cur.c + dc, extend);
+}
+
+// =============================================================== 행 추가/삭제
+async function addRow() {
+  const base = { emotion: "새 감정", appearance: "새 캐릭터", outfit: "새 의상", background: "새 배경", pregnancy: "새 임신", emotion_group: "새 묶음", character: "새 캐릭터" }[tab];
+  let name = base, i = 2;
+  while (items(tab)[name]) name = `${base}_${i++}`;
+  snapshot();
+  try {
+    const j = await postJSON("/charprefab/save_many", { collection: tab, items: [{ name, data: tab === "emotion" ? { fields: {} } : {} }] });
+    COLL = j.collections;
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    render(true);
+    const r = rows.findIndex((x) => x.key === name);
+    if (r >= 0) { focusCell(r, 0); beginEdit(); }
+    setStatus("ok", `'${name}' 추가됨`);
+  } catch (e) { setStatus("err", "추가 실패"); alert(e.message); }
+}
+async function stripNames(mode, label) {
+  const names = [...pickedRows].filter((n) => items(tab)[n]);
+  if (!names.length) { alert("왼쪽 번호를 눌러 행을 먼저 고르세요."); return; }
+  const plan = renamePlan(names, (n) => stripName(n, mode), items(tab));
+  if (!plan.length) { alert("바뀌는 이름이 없습니다."); return; }
+  if (!confirm(`${plan.length}개 이름에서 ${label}:\n` + plan.map(([a, b]) => `${a} ⇒ ${b}`).join("\n"))) return;
+  snapshot();
+  try {
+    const j = await postJSON("/charprefab/save_many", { collection: tab, items: plan.map(([old, name]) => ({ name, old_name: old, data: items(tab)[old] })) });
+    COLL = j.collections;
+    pickedRows = new Set(plan.map((x) => x[1]));
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    render(true);
+    setStatus("ok", `${plan.length}개 이름 바꿈 (${label})`);
+  } catch (e) { setStatus("err", "이름 바꾸기 실패"); alert(e.message); }
+}
+
+/** 버튼이 여러 개인 확인 창. 고른 번호를 돌려주고 취소하면 -1 */
+function askChoice(title, bodyHtml, labels) {
+  const dlg = $("askdlg");
+  $("askTitle").textContent = title;
+  $("askBody").innerHTML = bodyHtml;
+  return new Promise((resolve) => {
+    let picked = -1;
+    $("askBtns").replaceChildren(
+      ...labels.map((l, i) => el("button", {
+        className: i === 0 ? "primary" : (l.danger ? "danger" : ""),
+        onclick: () => { picked = i; dlg.close(); },
+      }, typeof l === "string" ? l : l.text)),
+      el("button", { onclick: () => dlg.close() }, "취소"));
+    dlg.addEventListener("close", () => resolve(picked), { once: true });
+    dlg.showModal();
+  });
+}
+const bundleMembersOf = (name) => ((items("emotion_group")[name]?.emotions) || []).filter((e) => items("emotion")[e]);
+
+async function delRows() {
+  const names = [...pickedRows];
+  if (!names.length) return;
+  let alsoEmotions = [];
+  if (tab === "emotion_group") {
+    const members = [...new Set(names.flatMap(bundleMembersOf))].sort(natCmp);
+    if (!members.length) {
+      if (!confirm(`${names.length}개 묶음을 삭제할까요? (묶인 감정 없음)\n${names.join(", ")}`)) return;
+    } else {
+      const others = Object.keys(items("emotion_group")).filter((b) => !names.includes(b));
+      const shared = members.filter((m) => others.some((b) => bundleMembersOf(b).includes(m)));
+      const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+      const pick = await askChoice(`묶음 ${names.length}개 삭제`,
+        `<div>삭제할 묶음: ${esc(names.join(", "))}</div>
+         <div style="margin-top:6px">묶인 감정 ${members.length}개: ${esc(members.join(", "))}</div>
+         <div class="hint" style="margin-top:6px">${shared.length ? "⚠ 다른 묶음에도 들어있는 감정: " + esc(shared.join(", ")) : "이 감정들은 다른 묶음에 들어있지 않습니다."}</div>`,
+        ["묶음만 삭제", { text: `묶음 + 감정 ${members.length}개 삭제`, danger: true }]);
+      if (pick < 0) return;
+      if (pick === 1) alsoEmotions = members;
+    }
+  } else if (!confirm(`${names.length}개를 삭제할까요?\n${names.join(", ")}`)) return;
+  snapshot();
+  try {
+    if (alsoEmotions.length) await postJSON("/charprefab/delete_many", { collection: "emotion", names: alsoEmotions });
+    const j = await postJSON("/charprefab/delete_many", { collection: tab, names });
+    COLL = j.collections;
+    pickedRows.clear();
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    render(true);
+    setStatus("ok", alsoEmotions.length ? `묶음 ${names.length}개 + 감정 ${alsoEmotions.length}개 삭제됨` : `${names.length}개 삭제됨`);
+  } catch (e) { setStatus("err", "삭제 실패"); alert(e.message); }
+}
+
+/** 대상 행: 고른 행이 있으면 그 행, 없으면 지금 보이는 행 전체 */
+function targetRows() {
+  const picked = [...pickedRows].filter((n) => items(tab)[n]);
+  return picked.length ? rows.filter((r) => picked.includes(r.key)) : rows;
+}
+async function dupRows() {
+  const target = targetRows();
+  if (!target.length) { alert("복제할 행이 없습니다."); return; }
+  const taken = new Set(Object.keys(items(tab)));
+  const plan = target.map((r) => {
+    let name = `${r.key}_복사`, i = 2;
+    while (taken.has(name)) name = `${r.key}_복사_${i++}`;
+    taken.add(name);
+    return [r.key, name];
+  });
+  if (!confirm(`${plan.length}개를 복제할까요?\n` + plan.map(([a, b]) => `${a} ⇒ ${b}`).join("\n"))) return;
+  snapshot();
+  try {
+    const j = await postJSON("/charprefab/save_many", { collection: tab, items: plan.map(([src, name]) => ({ name, data: clone(items(tab)[src]) })) });
+    COLL = j.collections;
+    pickedRows = new Set(plan.map((x) => x[1]));
+    bc?.postMessage({ type: "changed", from: "sheet" });
+    render(true);
+    setStatus("ok", `${plan.length}개 복제됨`);
+  } catch (e) { setStatus("err", "복제 실패"); alert(e.message); }
+}
+function addExtraColumn() {
+  const name = prompt("새 추가 프롬 이름 (예: 땀, 상처, 젖은 머리)")?.trim();
+  if (!name) return;
+  if (extraNames().includes(name)) { alert(`'${name}' 은(는) 이미 있습니다.`); return; }
+  pendingExtras.add(name);
+  if (tab !== "appearance") tab = "appearance";
+  render();
+  setStatus("ok", `'${name}' 칸 추가됨 — 값을 적으면 저장됩니다`);
+}
+function nodeSelect(action) {
+  const names = targetRows().map((r) => r.key);
+  if (!names.length) return;
+  bc?.postMessage({ type: "emotionSelect", action, names, from: "sheet" });
+  setStatus("ok", `노드에서 ${names.length}개 ${action === "add" ? "켬" : "끔"}`);
+}
+
+// ---- 순차 번호 매기기
+const numOpts = () => ({
+  start: parseInt($("numStart").value) || 0,
+  step: Math.max(1, parseInt($("numStep").value) || 1),
+  digits: Math.max(0, Math.min(8, parseInt($("numDigits").value) || 0)),
+  sep: $("numSep").value,
+  where: $("numWhere").value,
+  keep: $("numKeep").value === "keep",
+});
+/** 기존 번호를 떼어낸 이름 */
+const stripLeadNum = (n) => tidyName(String(n).replace(/^\s*\d+\s*[_\-. ]*/, ""));
+const stripTailNum = (n) => tidyName(String(n).replace(/[_\-. ]*\d+\s*$/, ""));
+function numberPlan(o) {
+  const target = targetRows();
+  const taken = new Set(Object.keys(items(tab)).filter((n) => !target.some((r) => r.key === n)));
+  const out = [];
+  target.forEach((r, i) => {
+    const num = String(o.start + i * o.step).padStart(o.digits, "0");
+    const base = o.keep ? r.key : o.where === "suffix" ? stripTailNum(r.key) : stripLeadNum(r.key);
+    let want = o.where === "only" ? num : !base ? num
+      : o.where === "suffix" ? `${base}${o.sep}${num}` : `${num}${o.sep}${base}`;
+    want = tidyName(want) || num;
+    let name = want, k = 2;
+    while (taken.has(name)) name = `${want}_${k++}`;
+    taken.add(name);
+    if (name !== r.key) out.push([r.key, name]);
+  });
+  return out;
+}
+function openNumberDlg() {
+  const target = targetRows();
+  if (!target.length) { alert("번호를 매길 행이 없습니다."); return; }
+  $("numTarget").textContent = `대상 ${target.length}개 (${[...pickedRows].length ? "고른 행" : "지금 보이는 행 전체"}) — 표에 보이는 순서대로 매깁니다`;
+  const upd = () => {
+    const plan = numberPlan(numOpts());
+    $("numPreview").textContent = plan.length
+      ? plan.slice(0, 12).map(([a, b]) => `${a} ⇒ ${b}`).join("\n") + (plan.length > 12 ? `\n… 외 ${plan.length - 12}개` : "")
+      : "바뀌는 이름이 없습니다.";
+  };
+  for (const id of ["numStart", "numStep", "numDigits", "numSep", "numWhere", "numKeep"]) {
+    const e = $(id);
+    e.oninput = upd; e.onchange = upd;
+  }
+  upd();
+  $("numApply").onclick = async () => {
+    const plan = numberPlan(numOpts());
+    $("numdlg").close();
+    if (!plan.length) return;
+    snapshot();
+    try {
+      const j = await postJSON("/charprefab/save_many", { collection: tab, items: plan.map(([old, name]) => ({ name, old_name: old, data: items(tab)[old] })) });
+      COLL = j.collections;
+      pickedRows = new Set(plan.map((x) => x[1]).filter((n) => pickedRows.size));
+      bc?.postMessage({ type: "changed", from: "sheet" });
+      render(true);
+      setStatus("ok", `${plan.length}개에 번호를 매겼습니다`);
+    } catch (e) { setStatus("err", "번호 매기기 실패"); alert(e.message); }
+  };
+  $("numdlg").showModal();
+}
+
+// ---- 그룹 설정 일괄 적용
+let groupsResolve = null;
+/** ComfyUI 창에 현재 워크플로의 그룹을 물어본다 (창이 없으면 null) */
+function askLiveGroups(timeout = 700) {
+  return new Promise((res) => {
+    if (!bc) { res(null); return; }
+    let done = false;
+    const finish = (g) => { if (done) return; done = true; groupsResolve = null; res(g); };
+    groupsResolve = finish;
+    bc.postMessage({ type: "groupsRequest", from: "sheet" });
+    setTimeout(() => finish(null), timeout);
+  });
+}
+const GROUP_ACTIONS = [["", "바꾸지 않음"], ["none", "설정 없음 (유지)"], ["on", "켜기"], ["mute", "끄기 (뮤트)"], ["bypass", "끄기 (바이패스)"]];
+const STATE_KO = { on: "켜짐", mute: "뮤트", bypass: "바이패스", mixed: "섞임", empty: "비어 있음" };
+
+async function openGroupDlg() {
+  const target = targetRows();
+  if (!target.length) { alert("그룹 설정을 적용할 행이 없습니다."); return; }
+  const live = await askLiveGroups();
+  const used = [...new Set(Object.values(items("emotion")).flatMap((v) => Object.keys(v?.groups || {})))];
+  const names = [...new Set([...(live || []).map((g) => g.title), ...used])].sort(natCmp);
+  const liveState = Object.fromEntries((live || []).map((g) => [g.title, g.state]));
+  const choice = {};
+
+  $("grpTarget").textContent =
+    `대상 ${target.length}개 (${pickedRows.size ? "고른 행" : "지금 보이는 행 전체"})` +
+    (live ? ` · 워크플로 그룹 ${live.length}개를 읽었습니다` : " · ComfyUI 창을 찾지 못해 현재 상태는 못 읽었습니다");
+
+  const draw = () => {
+    $("grpList").replaceChildren(...(names.length ? names : []).flatMap((n) => [
+      el("div", {}, n),
+      el("div", { className: "hint" }, liveState[n] ? `현재: ${STATE_KO[liveState[n]] || liveState[n]}` : "워크플로에 없음"),
+      el("select", { onchange: (e) => { choice[n] = e.target.value; } },
+        GROUP_ACTIONS.map(([v, l]) => el("option", { value: v, selected: (choice[n] || "") === v }, l))),
+    ]));
+    if (!names.length) $("grpList").replaceChildren(el("div", { className: "hint" }, "그룹이 없습니다. 아래에서 이름을 직접 추가하거나, ComfyUI에서 그룹을 만든 뒤 다시 열어 주세요."));
+  };
+  $("grpTools").replaceChildren(
+    el("button", {
+      disabled: !live, title: "지금 워크플로의 그룹 켜짐/꺼짐 상태를 그대로 넣습니다",
+      onclick: () => { for (const n of names) choice[n] = liveState[n] && liveState[n] in { on: 1, mute: 1, bypass: 1 } ? liveState[n] : "none"; draw(); },
+    }, "📥 현재 워크플로 상태로"),
+    el("button", { onclick: () => { for (const n of names) choice[n] = "none"; draw(); } }, "모두 설정 없음"),
+    el("button", { onclick: () => { for (const n of names) choice[n] = ""; draw(); } }, "모두 바꾸지 않음"));
+  $("grpAdd").onclick = () => {
+    const v = $("grpNew").value.trim();
+    if (!v) return;
+    if (!names.includes(v)) names.push(v), names.sort(natCmp);
+    choice[v] = "none";
+    $("grpNew").value = "";
+    draw();
+  };
+  draw();
+
+  $("grpApply").onclick = () => {
+    const picks = Object.entries(choice).filter(([, v]) => v);
+    $("grpdlg").close();
+    if (!picks.length) { setStatus("ok", "바꿀 그룹을 고르지 않았습니다"); return; }
+    snapshot();
+    let n = 0;
+    for (const row of target) {
+      const d = items(tab)[row.key];
+      if (!d) continue;
+      const before = JSON.stringify(d.groups || {});
+      d.groups ??= {};
+      for (const [name, act] of picks) {
+        if (act === "none") delete d.groups[name];
+        else d.groups[name] = act;
+      }
+      if (JSON.stringify(d.groups) !== before) { markDirty(row.key); n++; }
+    }
+    render(true);
+    setStatus(n ? "dirty" : "ok", n ? `${n}개 감정의 그룹 설정을 바꿨습니다` : "바뀐 감정이 없습니다");
+    if (!n) undoStack.pop();
+  };
+  $("grpdlg").showModal();
+}
+
+// =============================================================== 복사 / 붙여넣기
+function selRange() {
+  return {
+    r0: Math.min(cur.r, anchor.r), r1: Math.max(cur.r, anchor.r),
+    c0: Math.min(cur.c, anchor.c), c1: Math.max(cur.c, anchor.c),
+  };
+}
+document.addEventListener("copy", (e) => {
+  if (editing || !e.clipboardData) return;
+  const { r0, r1, c0, c1 } = selRange();
+  const out = [];
+  for (let r = r0; r <= r1; r++) {
+    const line = [];
+    for (let c = c0; c <= c1; c++) {
+      const col = cols[c], v = cellValue(rows[r], col);
+      line.push(col.type === "bool" ? (v ? "1" : "0") : String(display(v, col)).replace(/[\t\n]/g, " "));
+    }
+    out.push(line.join("\t"));
+  }
+  e.clipboardData.setData("text/plain", out.join("\n"));
+  e.preventDefault();
+  setStatus("ok", `${(r1 - r0 + 1)}×${(c1 - c0 + 1)}칸 복사됨`);
+});
+document.addEventListener("paste", (e) => {
+  if (editing || !e.clipboardData) return;
+  const text = e.clipboardData.getData("text/plain");
+  if (!text) return;
+  e.preventDefault();
+  const grid = text.replace(/\r/g, "").replace(/\n$/, "").split("\n").map((l) => l.split("\t"));
+  snapshot();
+  let n = 0;
+  for (let i = 0; i < grid.length; i++) {
+    const r = cur.r + i;
+    if (r >= rows.length) break;
+    for (let j = 0; j < grid[i].length; j++) {
+      const c = cur.c + j;
+      if (c >= cols.length) break;
+      if (setCell(r, c, grid[i][j])) n++;
+    }
+  }
+  render(true);
+  setStatus("dirty", n ? `${n}칸 붙여넣음` : "바뀐 칸 없음");
+  if (!n) undoStack.pop();
+});
+
+// =============================================================== 키보드
+document.addEventListener("keydown", (e) => {
+  if (editing || e.target.tagName === "INPUT" && e.target.id === "search") {
+    if (e.key === "Escape" && e.target.id === "search") { e.target.value = ""; render(true); e.target.blur(); }
+    return;
+  }
+  const k = e.key;
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "z") { e.preventDefault(); undo(); return; }
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") { e.preventDefault(); clearTimeout(saveTimer); save(); return; }
+  if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "f") { e.preventDefault(); $("search").focus(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const nav = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[k];
+  if (nav) { e.preventDefault(); move(nav[0], nav[1], e.shiftKey); return; }
+  if (k === "Tab") { e.preventDefault(); move(0, e.shiftKey ? -1 : 1); return; }
+  if (k === "Enter") { e.preventDefault(); beginEdit(); return; }
+  if (k === "F2") { e.preventDefault(); beginEdit(); return; }
+  if (k === " ") { e.preventDefault(); if (cols[cur.c]?.type === "bool") toggleBool(); else beginEdit(); return; }
+  if (k === "Delete" || k === "Backspace") {
+    e.preventDefault();
+    const { r0, r1, c0, c1 } = selRange();
+    snapshot();
+    let n = 0;
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      if (cols[c].label === "이름" || cols[c].ro) continue;
+      if (setCell(r, c, cols[c].type === "bool" ? "0" : "")) n++;
+    }
+    if (n) render(true); else undoStack.pop();
+    return;
+  }
+  if (k === "Home") { e.preventDefault(); focusCell(cur.r, 0); return; }
+  if (k === "End") { e.preventDefault(); focusCell(cur.r, cols.length - 1); return; }
+  if (k.length === 1 && !e.ctrlKey) { e.preventDefault(); beginEdit(cols[cur.c]?.type === "bool" ? null : k); }
+});
+
+// =============================================================== 탭/도구
+function switchTab(k) {
+  commitEdit();
+  clearTimeout(saveTimer);
+  save().then(() => { tab = k; bundleFilter = ""; cur = { r: 0, c: 0 }; anchor = { ...cur }; pickedRows.clear(); undoStack = []; render(); });
+}
+$("search").addEventListener("input", () => render(true));
+$("addRow").addEventListener("click", addRow);
+$("delRow").addEventListener("click", delRows);
+$("dupRow").addEventListener("click", dupRows);
+$("numberRows").addEventListener("click", openNumberDlg);
+$("addExtra").addEventListener("click", addExtraColumn);
+$("nodeOn").addEventListener("click", () => nodeSelect("add"));
+$("nodeOff").addEventListener("click", () => nodeSelect("remove"));
+$("groupSet").addEventListener("click", openGroupDlg);
+$("stripNum").addEventListener("click", () => stripNames("digits", "숫자 지우기"));
+$("stripChar").addEventListener("click", () => stripNames("letters", "문자 지우기"));
+$("undo").addEventListener("click", undo);
+$("reload").addEventListener("click", () => load(true));
+$("help").addEventListener("click", () => $("helpdlg").showModal());
+
+// ComfyUI 쪽에서 바뀌면 표도 갱신
+bc?.addEventListener("message", (e) => {
+  if (e.data?.from === "sheet") return;
+  if (e.data?.type === "groupsReply") { groupsResolve?.(e.data.groups || []); return; }
+  if (suppressReload) return;
+  if (dirty.size || dirtyBundles.size) return;   // 편집 중이면 덮어쓰지 않음
+  getJSON("/charprefab/data").then((d) => { META = d; COLL = d.collections; render(true); setStatus("ok", "ComfyUI 변경 반영됨"); }).catch(() => {});
+});
+window.addEventListener("beforeunload", (e) => { if (dirty.size || dirtyBundles.size) { save(); e.preventDefault(); e.returnValue = ""; } });
+
+load().catch((e) => { setStatus("err", "불러오기 실패"); $("wrap").replaceChildren(el("div", { className: "empty" }, "ComfyUI 서버에 연결하지 못했습니다: " + e.message)); });
+</script>
+</body>
+</html>
